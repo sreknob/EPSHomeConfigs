@@ -1,0 +1,11 @@
+---
+common_wifi: << !include wifi.yaml
+common_api: << !include api.yaml
+common_ota: << !include ota.yaml
+common_time: << !include time.yaml
+common_logger: << !include logger.yaml
+common_binaary_sensors: << !include binary_sensors.yaml
+common_switches: << !include switches.yaml
+common_sensors: << !include sensors.yaml
+
+<<: !include ../secrets.yaml

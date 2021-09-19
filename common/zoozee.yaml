@@ -1,0 +1,127 @@
+esphome:
+  name: ${device}
+  platform: ESP8266
+  board: esp8285
+  esp8266_restore_from_flash: ${write_state_to_flash}
+
+packages:
+  common: !include common.yaml
+
+# Toggle Button
+binary_sensor:
+  - platform: gpio
+    id: button
+    pin:
+      number: GPIO13
+      inverted: true
+    on_press:
+      - switch.toggle: relay
+
+# Power Relay
+switch:
+  - platform: gpio
+    id: relay
+    name: ${name}
+    pin: GPIO4
+    icon: ${zoozee_switch_icon}
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - light.turn_on: led
+    on_turn_off:
+      - light.turn_off: led
+
+# Status LED
+status_led:
+  pin:
+    number: GPIO0
+    inverted: true
+
+# Power Monitoring Sensors
+sensor:
+  # Power sensor
+  - platform: hlw8012
+    sel_pin:
+      number: GPIO12
+      inverted: true
+    cf_pin: GPIO05
+    cf1_pin: GPIO14
+    change_mode_every: 3
+    update_interval: 10s
+    ## Higher value gives lower watt readout
+    #current_resistor: 0.00220 #0.00221 #DEFAULT 0.001 ohm
+    ## Lower value gives lower voltage readout
+    #voltage_divider: 900 #923 #871 #DEFAULT 2351
+
+
+    # Current sensor
+    current:
+      id: current
+      name: ${name} Current
+      unit_of_measurement: A
+      accuracy_decimals: 3
+      filters:
+      # Map from sensor -> measured value
+        - calibrate_linear:
+          - 0.0 -> 0.014
+          - 0.10622 -> 0.095
+          - 0.67594 -> 0.562
+          - 1.01874 -> 0.844
+          - 1.69469 -> 1.393
+          - 3.04174 -> 2.500
+          - 3.06588 -> 2.514
+          - 4.73643 -> 3.895
+      # Make everything below 0.01A appear as just 0A.
+      # Furthermore it corrects 0.025A for the power usage of the plug.
+        - lambda: if (x < 0.025) return 0; else return (x - 0.025);
+
+    # Voltage sensor
+    voltage:
+      id: voltage
+      name: ${name} Voltage
+      unit_of_measurement: V
+      accuracy_decimals: 1
+      filters:
+      # Map from sensor -> measured value
+        - calibrate_linear:
+          - 0.0 -> 0.0
+          #- 302.93585 -> 118.5
+          #- 303.88934 -> 119.0
+          - 306.61356 -> 120.0
+          #- 306.88602 -> 120.2
+          #- 309.61026 -> 121.1
+
+    # Power sensor
+    power:
+      id: power
+      name: ${name} Power
+      unit_of_measurement: W
+      accuracy_decimals: 0
+      filters:
+      # Map from sensor -> measured value
+        - calibrate_linear: 
+          - 0.0 -> 1.0
+          - 41.37445 -> 8.0
+          - 55.16593 -> 10.2
+          - 393.05725 -> 68.0
+          - 593.03375 -> 101.9
+          - 979.19525 -> 167.9
+          - 1716.00513 -> 297.0
+          - 1737.72681 -> 300.1
+          - 2692.78711 -> 462.2
+      # Make everything below 2W appear as just 0W.
+      # Furthermore it corrects 1 W for the power usage of the plug.
+        - lambda: if (x < (2.0 + 1.0)) return 0; else return (x - 1.0);
+
+output:
+  # Relay state led
+  - platform: esp8266_pwm
+    id: state_led
+    pin:
+      number: GPIO2
+      inverted: true
+
+light:
+  # Relay state light
+  - platform: monochromatic
+    output: state_led
+    id: led

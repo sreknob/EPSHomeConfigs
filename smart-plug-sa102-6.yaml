@@ -1,0 +1,16 @@
+######################################
+# 
+######################################
+
+substitutions:
+  device: smart-plug-sa102-6
+  static_address: ${device}.local
+  name: Smart Plug SA102_6
+  zoozee_switch_icon: "mdi:power"
+  reboot_timeout: 1d
+  update_interval: 5min
+  write_state_to_flash: "true"
+  log_level: INFO
+  
+packages: 
+  zoozee: !include common/zoozee.yaml

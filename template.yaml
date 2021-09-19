@@ -1,0 +1,21 @@
+substitutions:
+  device: template # avoid underscores for hostnames
+  static_address: ${device}.local
+  name: Template Name
+  reboot_timeout: 1d
+  update_interval: 5min
+  log_level: INFO
+  
+esphome:
+  name: ${device}
+  platform: ESP8266
+  board: nodemcuv2
+
+packages:
+  common: !include common/common.yaml
+
+# Blue LED on ESP8266
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true

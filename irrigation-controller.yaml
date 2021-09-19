@@ -1,0 +1,1027 @@
+substitutions:
+  device: irrigation-controller
+  name: Irrigation Controller
+  reboot_timeout: 1d
+  update_interval: 5min
+  log_level: INFO #VERY_VERBOSE #DEBUG
+  static_address: ${device}.local
+
+esphome:
+  name: ${device}
+  platform: ESP32
+  board: esp32dev #nodemcuv2
+  includes:
+    - irrigation.h
+
+packages:
+  common: !include common/common.yaml
+
+i2c:
+  #sda: 21
+  #scl: 22
+  #id: bus_a
+
+globals:
+  # ============================================================================= #
+  # Irrigation time remaining
+  - id: remaining_time1
+    type: int
+    restore_value: no
+    initial_value: "300"
+  - id: remaining_time2
+    type: int
+    restore_value: no
+    initial_value: "300"
+  - id: remaining_time3
+    type: int
+    restore_value: no
+    initial_value: "300"
+  - id: remaining_time4
+    type: int
+    restore_value: no
+    initial_value: "300"
+  - id: remaining_time5
+    type: int
+    restore_value: no
+    initial_value: "300"
+
+  # ============================================================================= #
+  # Store previous values to verify change.
+  - id: remaining_time1_previous
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: remaining_time2_previous
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: remaining_time3_previous
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: remaining_time4_previous
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: remaining_time5_previous
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+time:
+  - platform: homeassistant
+    #timezone: America/Toronto
+    id: homeassistant_time
+    # Time based automations.
+    on_time:
+      # Run the scheduler every minute unless zone is disabled
+      - seconds: 0
+        minutes: /1
+        then:
+          - if:
+              condition:
+                - binary_sensor.is_off: ui_disable_zone1
+              then:
+                - lambda: |-
+                    if (scheduled_runtime(id(irrigation_zone1_next).state.c_str())) {
+                      id(irrigation_zone1).turn_on(); }
+          - if:
+              condition:
+                - binary_sensor.is_off: ui_disable_zone2
+              then:
+                - lambda: |-
+                    if (scheduled_runtime(id(irrigation_zone2_next).state.c_str())) { 
+                    id(irrigation_zone2).turn_on(); }
+          - if:
+              condition:
+                - binary_sensor.is_off: ui_disable_zone3
+              then:
+                - lambda: |-
+                    if (scheduled_runtime(id(irrigation_zone3_next).state.c_str())) {
+                      id(irrigation_zone3).turn_on(); }
+          - if:
+              condition:
+                - binary_sensor.is_off: ui_disable_zone4
+              then:
+                - lambda: |-
+                    if (scheduled_runtime(id(irrigation_zone4_next).state.c_str())) { 
+                      id(irrigation_zone4).turn_on(); }
+          - if:
+              condition:
+                - binary_sensor.is_off: ui_disable_zone5
+              then:
+                - lambda: |-
+                    if (scheduled_runtime(id(irrigation_zone5_next).state.c_str())) { 
+                      id(irrigation_zone5).turn_on(); }
+
+switch:
+  # ============================================================================= #
+  # Virtual Zone Switches which toggle the relay, and store the current state.
+
+  - platform: template
+    name: "Irrigation Zone 1"
+    id: irrigation_zone1
+    icon: mdi:sprinkler
+    lambda: return id(relay1).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone1_duration).state >= 1;
+        then:
+          - switch.turn_on: relay1
+    turn_off_action:
+      - switch.turn_off: relay1
+      
+  - platform: template
+    name: "Irrigation Zone 2"
+    id: irrigation_zone2
+    icon: mdi:sprinkler
+    lambda: return id(relay2).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone2_duration).state >= 1;
+        then:
+          - switch.turn_on: relay2
+    turn_off_action:
+      - switch.turn_off: relay2
+      
+  - platform: template
+    name: "Irrigation Zone 3"
+    id: irrigation_zone3
+    icon: mdi:sprinkler
+    lambda: return id(relay3).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone3_duration).state >= 1;
+        then:
+          - switch.turn_on: relay3
+    turn_off_action:
+      - switch.turn_off: relay3
+
+  - platform: template
+    name: "Irrigation Zone 4"
+    id: irrigation_zone4
+    icon: mdi:sprinkler
+    lambda: return id(relay4).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone4_duration).state >= 1;
+        then:
+          - switch.turn_on: relay4
+    turn_off_action:
+      - switch.turn_off: relay4
+
+  - platform: template
+    name: "Irrigation Zone 5"
+    id: irrigation_zone5
+    icon: mdi:sprinkler
+    lambda: return id(relay5).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone5_duration).state >= 1;
+        then:
+          - switch.turn_on: relay5
+    turn_off_action:
+      - switch.turn_off: relay5
+
+  - platform: gpio
+    id: relay1
+    name: "Irrigation Zone 1 Relay"
+    icon: mdi:sprinkler #mdi:electric-switch
+    pin:
+      number: 26 #32
+      mode: OUTPUT
+      inverted: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time1
+            value: !lambda return id(irrigation_zone1_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone1_remaining
+            state: !lambda return id(irrigation_zone1_duration).state;
+          # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_zone1_next
+            state: "now"
+        # state NOW on original code, change to your preferred language
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone1_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone1_next
+            state: !lambda |- 
+              if (id(ui_disable_zone1).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone1_times).state, id(irrigation_zone1_days).state);
+              }
+
+  - platform: gpio
+    id: relay2
+    name: "Irrigation Zone 2 Relay"
+    icon: mdi:sprinkler #mdi:electric-switch
+    pin:
+      number: 25 #33
+      mode: OUTPUT
+      inverted: True
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time2
+            value: !lambda return id(irrigation_zone2_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone2_remaining
+            state: !lambda return id(irrigation_zone2_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_zone2_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone2_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone2_next
+            state: !lambda |- 
+              if (id(ui_disable_zone2).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone2_times).state, id(irrigation_zone2_days).state);
+              }
+
+  - platform: gpio
+    id: relay3
+    name: "Irrigation Zone 3 Relay"
+    icon: mdi:sprinkler #mdi:electric-switch
+    pin:
+      number: 17 #25
+      mode: OUTPUT
+      inverted: True
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time3
+            value: !lambda return id(irrigation_zone3_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone3_remaining
+            state: !lambda return id(irrigation_zone3_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_zone3_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone3_remaining
+            state: "0"
+          # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone3_next
+            state: !lambda |- 
+              if (id(ui_disable_zone3).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone3_times).state, id(irrigation_zone3_days).state);
+              }
+                  
+  - platform: gpio
+    id: relay4
+    name: "Irrigation Zone 4 Relay"
+    icon: mdi:sprinkler #mdi:electric-switch
+    pin:
+      number: 16 #26
+      mode: OUTPUT
+      inverted: True
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time4
+            value: !lambda return id(irrigation_zone4_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone4_remaining
+            state: !lambda return id(irrigation_zone4_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_zone4_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone4_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone4_next
+            state: !lambda |- 
+              if (id(ui_disable_zone4).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone4_times).state, id(irrigation_zone4_days).state);
+              }
+              
+  - platform: gpio
+    id: relay5
+    name: "Irrigation Zone 5 Relay"
+    icon: mdi:sprinkler #mdi:electric-switch
+    pin:
+      number: 27 #27
+      mode: OUTPUT
+      inverted: True
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time5
+            value: !lambda return id(irrigation_zone5_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone5_remaining
+            state: !lambda return id(irrigation_zone5_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_zone5_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone5_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone5_next
+            state: !lambda |- 
+              if (id(ui_disable_zone5).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone5_times).state, id(irrigation_zone5_days).state);
+              }
+
+  - platform: template
+    name: Stop Active Irrigation Zones
+    id: stop_all_zones
+    icon: mdi:close-octagon-outline
+    optimistic: true
+    turn_on_action:
+      - switch.turn_off: relay1
+      - switch.turn_off: relay2
+      - switch.turn_off: relay3
+      - switch.turn_off: relay4
+      - switch.turn_off: relay5
+      - delay: 2s
+      - switch.turn_off: stop_all_zones
+                  
+sensor:
+
+  - platform: bmp280
+    temperature:
+      name: "Outside Temperature"
+      #oversampling: 1x
+    pressure:
+      name: "Outisde Pressure"
+      #oversampling: 1x
+    address: 0x76
+    update_interval: 60s
+
+
+  # ============================================================================= #
+  # Retrieve durations settings from the Home Assistant UI.
+  - platform: homeassistant
+    id: ui_zone1_duration
+    entity_id: input_number.irrigation_zone1_duration
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone1_duration
+            state: !lambda return id(ui_zone1_duration).state;
+  - platform: homeassistant
+    id: ui_zone2_duration
+    entity_id: input_number.irrigation_zone2_duration
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+      - sensor.template.publish:
+          id: irrigation_zone2_duration
+          state: !lambda return id(ui_zone2_duration).state;
+  - platform: homeassistant
+    id: ui_zone3_duration
+    entity_id: input_number.irrigation_zone3_duration
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+      - sensor.template.publish:
+          id: irrigation_zone3_duration
+          state: !lambda return id(ui_zone3_duration).state;
+  - platform: homeassistant
+    id: ui_zone4_duration
+    entity_id: input_number.irrigation_zone4_duration
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+      - sensor.template.publish:
+          id: irrigation_zone4_duration
+          state: !lambda return id(ui_zone4_duration).state;
+  - platform: homeassistant
+    id: ui_zone5_duration
+    entity_id: input_number.irrigation_zone5_duration
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+      - sensor.template.publish:
+          id: irrigation_zone5_duration
+          state: !lambda return id(ui_zone5_duration).state;
+
+  # ============================================================================= #
+  # Store durations.
+  - platform: template
+    name: Irrigation Duration Zone 1
+    id: irrigation_zone1_duration
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:camera-timer
+  - platform: template
+    name: Irrigation Duration Zone 2
+    id: irrigation_zone2_duration
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:camera-timer
+  - platform: template
+    name: Irrigation Duration Zone 3
+    id: irrigation_zone3_duration
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:camera-timer
+  - platform: template
+    name: Irrigation Duration Zone 4
+    id: irrigation_zone4_duration
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:camera-timer
+  - platform: template
+    name: Irrigation Duration Zone 5
+    id: irrigation_zone5_duration
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:camera-timer
+  # ============================================================================= #
+  # Countdown sensors.
+  - platform: template
+    name: Zone 1 Time Remaining
+    id: irrigation_zone1_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:timer
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time1) == 0;
+            then:
+              - switch.turn_off: relay1
+  - platform: template
+    name: Zone 2 Time Remaining
+    id: irrigation_zone2_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:timer
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time2) == 0;
+            then:
+              - switch.turn_off: relay2
+  - platform: template
+    name: Zone 3 Time Remaining
+    id: irrigation_zone3_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:timer
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time3) == 0;
+            then:
+              - switch.turn_off: relay3
+  - platform: template
+    name: Zone 4 Time Remaining
+    id: irrigation_zone4_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:timer
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time4) == 0;
+            then:
+              - switch.turn_off: relay4
+  - platform: template
+    name: Zone 5 Time Remaining
+    id: irrigation_zone5_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: min
+    icon: mdi:timer
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time5) == 0;
+            then:
+              - switch.turn_off: relay5
+
+text_sensor:
+  # ============================================================================= #
+  # Retrieve list of times from the Home Assistant UI.
+  - platform: homeassistant
+    id: ui_zone1_times
+    entity_id: input_text.irrigation_zone1_times
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone1_times
+            state: !lambda return id(ui_zone1_times).state;
+  - platform: homeassistant
+    id: ui_zone2_times
+    entity_id: input_text.irrigation_zone2_times
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone2_times
+            state: !lambda return id(ui_zone2_times).state;
+  - platform: homeassistant
+    id: ui_zone3_times
+    entity_id: input_text.irrigation_zone3_times
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone3_times
+            state: !lambda return id(ui_zone3_times).state;
+  - platform: homeassistant
+    id: ui_zone4_times
+    entity_id: input_text.irrigation_zone4_times
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone4_times
+            state: !lambda return id(ui_zone4_times).state;
+  - platform: homeassistant
+    id: ui_zone5_times
+    entity_id: input_text.irrigation_zone5_times
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone5_times
+            state: !lambda return id(ui_zone5_times).state;
+  # ============================================================================= #
+  # Store time lists.
+  - platform: template
+    name: Zone 1 Schedule
+    id: irrigation_zone1_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone1_next
+            state: !lambda |-
+              if (id(ui_disable_zone1).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone1_times).state, id(irrigation_zone1_days).state);
+              }
+  - platform: template
+    name: Zone 2 Schedule
+    id: irrigation_zone2_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone2_next
+            state: !lambda |-
+              if (id(ui_disable_zone2).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone2_times).state, id(irrigation_zone2_days).state);
+              }
+  - platform: template
+    name: Zone 3 Schedule
+    id: irrigation_zone3_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone3_next
+            state: !lambda |-
+              if (id(ui_disable_zone3).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone3_times).state, id(irrigation_zone3_days).state);
+              }
+  - platform: template
+    name: Zone 4 Schedule
+    id: irrigation_zone4_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone4_next
+            state: !lambda |-
+              if (id(ui_disable_zone4).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone4_times).state, id(irrigation_zone4_days).state);
+              }
+  - platform: template
+    name: Zone 5 Schedule
+    id: irrigation_zone5_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone5_next
+            state: !lambda |-
+              if (id(ui_disable_zone5).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone5_times).state, id(irrigation_zone5_days).state);
+              }
+
+# ============================================================================= #
+  # Retrieve list of days from the Home Assistant UI.
+  - platform: homeassistant
+    id: ui_zone1_days
+    entity_id: input_text.irrigation_zone1_days
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone1_days
+            state: !lambda return id(ui_zone1_days).state;
+  - platform: homeassistant
+    id: ui_zone2_days
+    entity_id: input_text.irrigation_zone2_days
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone2_days
+            state: !lambda return id(ui_zone2_days).state;
+  - platform: homeassistant
+    id: ui_zone3_days
+    entity_id: input_text.irrigation_zone3_days
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone3_days
+            state: !lambda return id(ui_zone3_days).state;
+  - platform: homeassistant
+    id: ui_zone4_days
+    entity_id: input_text.irrigation_zone4_days
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone4_days
+            state: !lambda return id(ui_zone4_days).state;
+  - platform: homeassistant
+    id: ui_zone5_days
+    entity_id: input_text.irrigation_zone5_days
+    on_value:
+      #if:
+      #  condition:
+      #    api.connected:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_zone5_days
+            state: !lambda return id(ui_zone5_days).state;
+  # ============================================================================= #
+  # Store time lists.
+  - platform: template
+    name: Zone 1 Days
+    id: irrigation_zone1_days
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone1_next
+            state: !lambda |-
+              if (id(ui_disable_zone1).state) {
+                return {"Schedule Disabled"};
+              }
+              else {
+              return update_next_runtime(id(irrigation_zone1_times).state, id(irrigation_zone1_days).state);
+              }
+  - platform: template
+    name: Zone 2 Days
+    id: irrigation_zone2_days
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone2_next
+            state: !lambda |-
+              if (id(ui_disable_zone2).state) {
+                return {"Schedule Disabled"};
+              } else {
+              return update_next_runtime(id(irrigation_zone2_times).state, id(irrigation_zone2_days).state);
+              }
+  - platform: template
+    name: Zone 3 Days
+    id: irrigation_zone3_days
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone3_next
+            state: !lambda |-
+              if (id(ui_disable_zone3).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone3_times).state, id(irrigation_zone3_days).state);
+              }
+  - platform: template
+    name: Zone 4 Days
+    id: irrigation_zone4_days
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone4_next
+            state: !lambda |-
+              if (id(ui_disable_zone4).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone4_times).state, id(irrigation_zone4_days).state);
+              }
+  - platform: template
+    name: Zone 5 Days
+    id: irrigation_zone5_days
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone5_next
+            state: !lambda |-
+              if (id(ui_disable_zone5).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone5_times).state, id(irrigation_zone5_days).state);
+              }
+
+  # ============================================================================= #
+  # Set the next scheduled time.
+  - platform: template
+    name: Zone 1 Next Watering
+    id: irrigation_zone1_next
+    icon: mdi:calendar-clock
+  - platform: template
+    name: Zone 2 Next Watering
+    id: irrigation_zone2_next
+    icon: mdi:calendar-clock
+  - platform: template
+    name: Zone 3 Next Watering
+    id: irrigation_zone3_next
+    icon: mdi:calendar-clock
+  - platform: template
+    name: Zone 4 Next Watering
+    id: irrigation_zone4_next
+    icon: mdi:calendar-clock
+  - platform: template
+    name: Zone 5 Next Watering
+    id: irrigation_zone5_next
+    icon: mdi:calendar-clock
+    
+# Update the countdown timers every 5 seconds.
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (id(remaining_time1) > 0) {
+            // Store the previous time.
+            id(remaining_time1_previous) = id(remaining_time1);
+            // When the relay is on.
+            if (id(relay1).state) {
+              // Decrement the timer.
+              id(remaining_time1) -= 5;
+              // Turn off the relay when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time1) <= 0 || id(irrigation_zone1_remaining).state > id(irrigation_zone1_duration).state){
+              if (id(remaining_time1) <= 0) {
+                id(relay1).turn_off();
+                id(remaining_time1) = 0;
+              }
+            }
+            // Update the remaining time display.
+            if (id(remaining_time1_previous) != id(remaining_time1)) {
+              id(irrigation_zone1_remaining).publish_state( (id(remaining_time1)/60) + 1 );
+            }
+          }
+          if (id(remaining_time2) > 0) {
+            id(remaining_time2_previous) = id(remaining_time2);
+            if (id(relay2).state) {
+              id(remaining_time2) -= 5;
+              if (id(remaining_time2) <= 0) {
+                id(relay2).turn_off();
+                id(remaining_time2) = 0;
+              }
+            }
+            if (id(remaining_time2_previous) != id(remaining_time2)) {
+              id(irrigation_zone2_remaining).publish_state( (id(remaining_time2)/60) + 1 );
+            }
+          }
+          if (id(remaining_time3) > 0) {
+            id(remaining_time3_previous) = id(remaining_time3);
+            if (id(relay3).state) {
+              id(remaining_time3) -= 5;
+              if (id(remaining_time3) <= 0) {
+                id(relay3).turn_off();
+                id(remaining_time3) = 0;
+              }
+            }
+            if (id(remaining_time3_previous) != id(remaining_time3)) {
+              id(irrigation_zone3_remaining).publish_state( (id(remaining_time3)/60) + 1 );
+            }
+          }
+          if (id(remaining_time4) > 0) {
+            id(remaining_time4_previous) = id(remaining_time4);
+            if (id(relay4).state) {
+              id(remaining_time4) -= 5;
+              if (id(remaining_time4) <= 0) {
+                id(relay4).turn_off();
+                id(remaining_time4) = 0;
+              }
+            }
+            if (id(remaining_time4_previous) != id(remaining_time4)) {
+              id(irrigation_zone4_remaining).publish_state( (id(remaining_time4)/60) + 1 );
+            }
+          }
+          if (id(remaining_time5) > 0) {
+            id(remaining_time5_previous) = id(remaining_time5);
+            if (id(relay5).state) {
+              id(remaining_time5) -= 5;
+              if (id(remaining_time5) <= 0) {
+                id(relay5).turn_off();
+                id(remaining_time5) = 0;
+              }
+            }
+            if (id(remaining_time5_previous) != id(remaining_time5)) {
+              id(irrigation_zone5_remaining).publish_state( (id(remaining_time5)/60) + 1 );
+            }
+          }
+
+
+binary_sensor:
+  # ============================================================================= #
+  # Bring input_boolean buttons from HA to disable schedules
+  - platform: homeassistant
+    id: ui_disable_zone1
+    entity_id: input_boolean.irrigation_disable_schedule_zone1
+    on_state:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone1_next
+            state: !lambda |-
+              if (id(ui_disable_zone1).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone1_times).state, id(irrigation_zone1_days).state);
+              }
+  - platform: homeassistant
+    id: ui_disable_zone2
+    entity_id: input_boolean.irrigation_disable_schedule_zone2
+    on_state:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone2_next
+            state: !lambda |-
+              if (id(ui_disable_zone2).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone2_times).state, id(irrigation_zone2_days).state);
+              }
+  - platform: homeassistant
+    id: ui_disable_zone3
+    entity_id: input_boolean.irrigation_disable_schedule_zone3
+    on_state:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone3_next
+            state: !lambda |-
+              if (id(ui_disable_zone3).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone3_times).state, id(irrigation_zone3_days).state);
+              }
+  - platform: homeassistant
+    id: ui_disable_zone4
+    entity_id: input_boolean.irrigation_disable_schedule_zone4
+    on_state:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone4_next
+            state: !lambda |-
+              if (id(ui_disable_zone4).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone4_times).state, id(irrigation_zone4_days).state);
+              }
+  - platform: homeassistant
+    id: ui_disable_zone5
+    entity_id: input_boolean.irrigation_disable_schedule_zone5
+    on_state:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_zone5_next
+            state: !lambda |-
+              if (id(ui_disable_zone5).state) {
+                return {"Schedule Disabled"};
+              } else {
+                return update_next_runtime(id(irrigation_zone5_times).state, id(irrigation_zone5_days).state);
+              }

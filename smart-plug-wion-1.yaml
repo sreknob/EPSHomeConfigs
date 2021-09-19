@@ -1,0 +1,16 @@
+######################################
+# Unifi USG-3P
+######################################
+
+substitutions:
+  device: smart-plug-wion-1
+  name: Smart Plug WiOn 1
+  reboot_timeout: 1h
+  update_interval: 5min
+  log_level: INFO
+  wion_switch_icon: ""
+  static_address: ${device}.local
+  write_state_to_flash: "true"
+
+packages:
+  wion: !include common/wion.yaml

@@ -1,0 +1,10 @@
+---
+<<: !include api.yaml
+<<: !include ota.yaml
+<<: !include time.yaml
+<<: !include logger.yaml
+<<: !include binary_sensors.yaml
+#<<: !include text_sensors.yaml
+<<: !include switches.yaml
+<<: !include sensors_no_wifi.yaml
+

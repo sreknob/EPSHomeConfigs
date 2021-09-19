@@ -1,0 +1,84 @@
+substitutions:
+  device: security-panel
+  name: Security Panel
+  reboot_timeout: 2h
+  update_interval: 5min
+  log_level: INFO
+  static_address: ${device}.local #192.168.20.156
+
+esphome:
+  name: ${device}
+  platform: ESP8266
+  board: nodemcuv2
+
+packages:
+  common: !include common/common.yaml
+
+binary_sensor:
+
+# Front Door
+  - platform: gpio
+    pin:
+      number: D1
+      mode: INPUT_PULLUP
+    name: "Front Door"
+    device_class: door
+
+# Back Door
+  - platform: gpio
+    pin:
+      number: D2
+      mode: INPUT_PULLUP
+    name: "Back Door"
+    device_class: door
+
+# Garage Entry Door
+  - platform: gpio
+    pin:
+      number: D5
+      mode: INPUT_PULLUP
+    name: "Garage Entry Door"
+    device_class: door
+
+# Front Hall Motion
+  - platform: gpio
+    pin:
+      number: D6
+      mode: INPUT_PULLUP
+    name: "Front Hall Motion"
+    device_class: motion
+
+# Smoke Alarm
+  - platform: gpio
+    pin:
+      number: D7
+      mode: INPUT_PULLUP # Needed?
+      inverted: true
+    name: "Smoke Alarm"
+    device_class: smoke
+
+# Sump Overflow
+  - platform: gpio
+    pin:
+      number: D9
+      mode: INPUT_PULLUP
+    name: "Sump Overflow"
+    device_class: moisture
+
+switch:
+
+# Siren
+  - platform: gpio
+    pin:
+      number: D8
+      #inverted: true
+    name: "Siren"
+    restore_mode: ALWAYS_OFF
+
+# Blue LED on chip
+status_led:
+  pin:
+    number: D4 #GPIO2
+    inverted: true
+    
+# Other NodeMCU Board LED is D0 (GPIO16) inverted

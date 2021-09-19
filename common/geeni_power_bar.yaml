@@ -1,0 +1,129 @@
+esphome:
+  name: ${device}
+  platform: ESP8266
+  board: esp01_1m
+  esp8266_restore_from_flash: ${write_state_to_flash}
+
+packages:
+  common: !include common.yaml
+
+binary_sensor:
+
+# Toggle Button
+  - platform: gpio
+    pin: GPIO16 #GPIO16
+    id: button
+# Push Button Function
+    on_press:
+      - if:
+          condition: &if_any_outlet_on
+            or: 
+              - switch.is_on: outlet_1
+              - switch.is_on: outlet_2
+              - switch.is_on: outlet_3
+              - switch.is_on: outlet_4
+              - switch.is_on: outlet_5
+              - switch.is_on: outlet_6
+          then: &turn_all_off
+            - switch.turn_off: outlet_1
+            - switch.turn_off: outlet_2
+            - switch.turn_off: outlet_3
+            - switch.turn_off: outlet_4
+            - switch.turn_off: outlet_5
+            - switch.turn_off: outlet_6
+          else: &turn_all_on
+            - switch.turn_on: outlet_1
+            - switch.turn_on: outlet_2
+            - switch.turn_on: outlet_3
+            - switch.turn_on: outlet_4
+            - switch.turn_on: outlet_5
+            - switch.turn_on: outlet_6
+
+# # Single click
+#    on_click:
+#      min_length: 50ms
+#      max_length: 350ms
+#     then:
+#        - switch.toggle: ${switch_assigned_outlet}
+#    on_multi_click:
+
+# # Long click turn assigned switch OFF
+#       - timing:
+#           - ON for 1s to 2s
+#           - OFF for at least 0.5s
+#         then:
+#           - switch.turn_off: outlet_1
+#           - switch.turn_off: outlet_2
+#           - switch.turn_off: outlet_3
+#           - switch.turn_off: outlet_4
+#           - switch.turn_off: outlet_5
+#           - switch.turn_off: outlet_6
+# # Double click turn all ON
+#       - timing:
+#           - ON for at most 1s
+#           - OFF for at most 1s
+#           - ON for at most 1s
+#           - OFF for at least 0.2s
+#         then:
+#           - switch.turn_on: outlet_1
+#           - switch.turn_on: outlet_2
+#           - switch.turn_on: outlet_3
+#           - switch.turn_on: outlet_4
+#           - switch.turn_on: outlet_5
+#           - switch.turn_on: outlet_6
+
+switch:
+
+# Outlet 1
+  - platform: gpio
+    pin: GPIO5 #GPIO5
+    name: ${outlet_1_name}
+    icon: ${outlet_1_icon}
+    id: outlet_1
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Outlet 2
+  - platform: gpio
+    pin: GPIO4 #GPIO4
+    name: ${outlet_2_name}
+    icon: ${outlet_2_icon}
+    id: outlet_2
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Outlet 3
+  - platform: gpio
+    pin: GPIO14 #GPIO14
+    name: ${outlet_3_name}
+    icon: ${outlet_3_icon}
+    id: outlet_3
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Outlet 4
+  - platform: gpio
+    pin: GPIO12 #GPIO12
+    name: ${outlet_4_name}
+    icon: ${outlet_4_icon}
+    id: outlet_4
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Outlet 5
+  - platform: gpio
+    pin: GPIO13 #GPIO13
+    name: ${outlet_5_name}
+    icon: ${outlet_5_icon}
+    id: outlet_5
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Outlet 6
+  - platform: gpio
+    pin: GPIO15 #GPIO15
+    name: ${outlet_6_name}
+    icon: ${outlet_6_icon}
+    id: outlet_6
+    restore_mode: RESTORE_DEFAULT_ON
+
+    
+# Blue LED
+status_led:
+  pin:
+    number: GPIO0

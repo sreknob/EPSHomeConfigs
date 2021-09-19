@@ -1,0 +1,4 @@
+---
+logger:
+  level: ${log_level}
+  baud_rate: 0

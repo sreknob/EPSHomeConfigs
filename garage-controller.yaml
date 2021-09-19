@@ -1,0 +1,253 @@
+# GPIO IN USE: 1(tx), 2, 3(rx), 4, 5, 12, 13, 14, 16
+
+substitutions:
+  device: garage-controller
+  name: Garage Controller
+  reboot_timeout: 1d
+  update_interval: 5min
+  log_level: INFO
+  static_address: ${device}.local #192.168.20.155
+
+esphome:
+  name: ${device}
+  platform: ESP8266
+  board: nodemcuv2
+  on_boot:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Scan your finger"
+    
+
+# web_server:
+#   port: 80
+
+packages:
+  common: !include common/common.yaml
+
+switch:
+# Garage Door Opener
+  - platform: gpio
+    pin:
+      number: D5 #GPIO14
+      inverted: true
+    name: "Garage Door Opener"
+    id: open_close_relay
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 500ms #5ms
+      - switch.turn_off: open_close_relay
+
+# Garage Door RF Lockout
+  - platform: gpio
+    pin:
+      number: D6 #GPIO12
+      inverted: true
+    id: rf_lockout_relay
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 500ms #5ms
+      - switch.turn_off: rf_lockout_relay
+  - platform: template
+    name: "Garage Door RF Lockout"
+    icon: "mdi:radio-tower"
+    optimistic: true
+    turn_on_action:
+      - switch.turn_on: rf_lockout_relay
+    turn_off_action:
+      - switch.turn_on: rf_lockout_relay
+
+
+# Garage Door Power
+  - platform: gpio
+    pin:
+      number: D1 #GPIO5
+      inverted: true
+    name: "Garage Door Power"
+    icon: "mdi:power"
+    id: power_relay
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Blue LED on chip
+status_led:
+  pin:
+    number: D4 #GPIO2
+    inverted: true
+
+# Other NodeMCU Board LED is D0 (GPIO16) inverted
+
+
+# Grow fingerprint reader config
+uart:
+  tx_pin: D3 ##-> GPIO1 native TX is GPIO1
+  rx_pin: D2 ##-> native RX is GPIO3
+  baud_rate: 57600
+
+# Declare Grow Fingerprint Reader
+fingerprint_grow:
+  sensing_pin: GPIO3 #D8 #GPIO4
+  on_finger_scan_matched:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Authorized finger"
+    - homeassistant.event:
+        event: esphome.garage_finger_scan_matched
+        data:
+          finger_id: !lambda 'return finger_id;'
+          confidence: !lambda 'return confidence;'
+    - fingerprint_grow.aura_led_control:
+        state: BREATHING
+        speed: 200
+        color: BLUE
+        count: 1
+    - switch.turn_on: open_close_relay
+    - delay: 5s
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Scan your finger"   
+  on_finger_scan_unmatched:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Unauthorized finger"
+    - homeassistant.event:
+        event: esphome.garage_finger_scan_unmatched
+    - fingerprint_grow.aura_led_control:
+        state: FLASHING
+        speed: 25
+        color: RED
+        count: 2
+    - delay: 5s
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Scan your finger"
+  on_enrollment_scan:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: "Finger scanned"
+    - homeassistant.event:
+        event: esphome.garage_enrollment_scan
+        data:
+          finger_id: !lambda 'return finger_id;'
+          scan_num: !lambda 'return scan_num;'
+    - fingerprint_grow.aura_led_control:
+        state: FLASHING
+        speed: 25
+        color: BLUE
+        count: 2
+    - fingerprint_grow.aura_led_control:
+        state: ALWAYS_ON
+        speed: 0
+        color: PURPLE
+        count: 0
+  on_enrollment_done:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: !lambda 'return "Enrolled into slot " + to_string(finger_id);'
+    - homeassistant.event:
+        event: esphome.garage_enrollment_done
+        data:
+          finger_id: !lambda 'return finger_id;'
+    - fingerprint_grow.aura_led_control:
+        state: BREATHING
+        speed: 100
+        color: BLUE
+        count: 2
+    - fingerprint_grow.aura_led_control:
+        state: GRADUAL_OFF
+        speed: 100
+        color: PURPLE
+        count: 0
+  on_enrollment_failed:
+    - text_sensor.template.publish:
+        id: fingerprint_state
+        state: !lambda 'return "Failed to enroll into slot " + to_string(finger_id);'
+    - homeassistant.event:
+        event: esphome.garage_enrollment_failed
+        data:
+          finger_id: !lambda 'return finger_id;'
+    # # Retry enrollment into the same slot
+    # - delay: 3s
+    # - text_sensor.template.publish:
+    #     id: fingerprint_state
+    #     state: !lambda 'return "Retrying enrollment into slot " + to_string(finger_id) + " in 3 seconds...";'
+    - fingerprint_grow.aura_led_control:
+        state: FLASHING
+        speed: 25
+        color: RED
+        count: 4
+    # - delay: 3s
+    # - fingerprint_grow.enroll: !lambda 'return finger_id;'
+
+        
+# Optional template text sensor for visual feedback
+text_sensor:
+  - platform: template
+    id: fingerprint_state
+    name: "Garage Fingerprint State"
+    
+sensor:
+  - platform: fingerprint_grow
+    fingerprint_count:
+      name: "Garage Fingerprint Count"
+    last_finger_id:
+      name: "Garage Fingerprint Last Finger ID"
+    last_confidence:
+      name: "Garage Fingerprint Last Confidence"
+    status:
+      name: "Garage Fingerprint Status"
+    capacity:
+      name: "Garage Fingerprint Capacity"
+    security_level:
+      name: "Garage Fingerprint Security Level"
+      
+  - platform: ultrasonic
+    trigger_pin: D7 #GPIO13
+    echo_pin: D0 #GPIO16
+    #name: "Garage Distance Sensor"
+    id: distance
+    update_interval: 30s
+    timeout: 4m
+    # on_value_range:
+    #   above: 0.5
+    #   below: 1.5
+    #   then:
+    #     - binary_sensor.template.publish:
+    #         id: parked_vehicle
+    #         state: ON
+      
+binary_sensor:
+  - platform: template
+    name: "Garage Parked Vehicle"
+    id: parked_vehicle
+    device_class: occupancy
+    lambda: |- 
+      if (id(distance).state < 1.75) {
+        // vehicle is present
+        return true;
+      } else {
+        // no vehicle present
+        return false;
+      }
+
+
+api:
+  services:
+  - service: enroll
+    variables:
+      finger_id: int
+      num_scans: int
+    then:
+      - fingerprint_grow.enroll:
+          finger_id: !lambda 'return finger_id;'
+          num_scans: !lambda 'return num_scans;'
+  - service: cancel_enroll
+    then:
+      - fingerprint_grow.cancel_enroll:
+  - service: delete
+    variables:
+      finger_id: int
+    then:
+      - fingerprint_grow.delete:
+          finger_id: !lambda 'return finger_id;'
+  - service: delete_all
+    then:
+      - fingerprint_grow.delete_all:

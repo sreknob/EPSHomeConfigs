@@ -1,0 +1,16 @@
+######################################
+# Kitchen Grow Light 2
+######################################
+
+substitutions:
+  device: smart-plug-sa102-2
+  name: Smart Plug SA102_2
+  zoozee_switch_icon: "mdi:power"
+  reboot_timeout: 1d
+  update_interval: 5min
+  write_state_to_flash: "true"
+  log_level: INFO
+  static_address: ${device}.local
+  
+packages: 
+  zoozee: !include common/zoozee.yaml

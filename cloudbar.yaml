@@ -1,0 +1,34 @@
+substitutions:
+  device: cloudbar
+  name: CloudBar
+  reboot_timeout: 1h
+  update_interval: 5min
+  log_level: INFO
+  static_address: ${device}.local
+  write_state_to_flash: 'true'
+  
+# Power Bar Outlet Names  
+  outlet_1_name: $name 1
+  outlet_1_icon: ""
+  outlet_2_name: $name 2
+  outlet_2_icon: ""
+  outlet_3_name: $name 3
+  outlet_3_icon: ""
+  outlet_4_name: $name 4
+  outlet_4_icon: ""
+  outlet_5_name: $name 5
+  outlet_5_icon: ""
+  outlet_6_name: $name 6
+  outlet_6_icon: ""
+  
+# Switch Assignment
+  switch_assigned_outlet: outlet_1 #outlet_N
+
+web_server:
+  port: 80
+
+packages:
+  geeni_power_bar: !include common/geeni_power_bar.yaml
+
+#<<: !include common/geeni_power_bar.yaml
+#<<: !include common/common.yaml
