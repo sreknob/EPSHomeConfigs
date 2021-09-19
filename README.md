@@ -1,0 +1,2 @@
+# EPSHomeConfigs
+Selected ESPHome configurations
