@@ -6,3 +6,4 @@ ethernet:
   clk_mode: GPIO0_IN
   phy_addr: 1
   power_pin: GPIO16
+  use_address: ${static_address}
