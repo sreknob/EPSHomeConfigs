@@ -4,55 +4,68 @@ substitutions:
   reboot_timeout: 2h
   update_interval: 5min
   log_level: INFO
-  static_address: ${device}.local #192.168.20.156
+  static_address: ${device}.local
 
 esphome:
   name: ${device}
-  platform: ESP8266
-  board: nodemcuv2
+  platform: ESP32
+  board: esp-wrover-kit
 
 packages:
-  common: !include common/common.yaml
+  common_no_wifi: !include common/common_no_wifi.yaml
+  wt32_eth01: !include common/wt32_eth01.yaml
 
 binary_sensor:
 
 # Front Door
   - platform: gpio
     pin:
-      number: D1
-      mode: INPUT_PULLUP
+      number: 15
+      mode:
+        input: true
+        pullup: true
     name: "Front Door"
     device_class: door
 
 # Back Door
   - platform: gpio
     pin:
-      number: D2
-      mode: INPUT_PULLUP
+      number: 14
+      mode:
+        input: true
+        pullup: true
     name: "Back Door"
     device_class: door
+    filters:
+      - delayed_on: 100ms
 
 # Garage Entry Door
   - platform: gpio
     pin:
-      number: D5
-      mode: INPUT_PULLUP
+      number: 12
+      mode:
+        input: true
+        pullup: true
     name: "Garage Entry Door"
     device_class: door
 
 # Front Hall Motion
   - platform: gpio
     pin:
-      number: D6
-      mode: INPUT_PULLUP
+      number: 2
+      mode:
+        input: true
+        pullup: true
     name: "Front Hall Motion"
     device_class: motion
 
 # Smoke Alarm
   - platform: gpio
     pin:
-      number: D7
-      mode: INPUT_PULLUP # Needed?
+      number: 4
+      mode:
+        input: true
+        pullup: true
       inverted: true
     name: "Smoke Alarm"
     device_class: smoke
@@ -60,25 +73,28 @@ binary_sensor:
 # Sump Overflow
   - platform: gpio
     pin:
-      number: D9
-      mode: INPUT_PULLUP
+      number: 32
+      mode:
+        input: true
+        pullup: true
     name: "Sump Overflow"
     device_class: moisture
+
+# Tamper Detection
+  - platform: gpio
+    pin:
+      number: 33
+      mode:
+        input: true
+        pullup: true
+    name: "Tamper Detection"
+    device_class: tamper
 
 switch:
 
 # Siren
   - platform: gpio
     pin:
-      number: D8
-      #inverted: true
+      number: 17
     name: "Siren"
     restore_mode: ALWAYS_OFF
-
-# Blue LED on chip
-status_led:
-  pin:
-    number: D4 #GPIO2
-    inverted: true
-    
-# Other NodeMCU Board LED is D0 (GPIO16) inverted
